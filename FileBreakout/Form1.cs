@@ -4,23 +4,31 @@ namespace FileBreakout;
 /// </summary>
 public partial class FileBreakout : Form
 {
+    CancellationTokenSource cancellationTokenSource;
+    CancellationToken cancellationToken;
     /// <summary>
     /// Enables controls
     /// </summary>
     private void EnableControls()
     {
-        breakoutFilesButton.Enabled = true;
+        selectPathButton.Enabled = true;
         keepCopyCheckbox.Enabled = true;
         breakoutByMonthCheckbox.Enabled = true;
+        folderPathTextBox.Enabled = true;
+        startProcessingButton.Enabled = true;
+        stopProcessing.Enabled = false;
     }
     /// <summary>
     /// Prepares the UI for processing by disabling controls, clearing the file tree view, and resetting the progress bar.
     /// </summary>
     private void PrepareForProcessing()
     {
-        breakoutFilesButton.Enabled = false;
+        selectPathButton.Enabled = false;
         keepCopyCheckbox.Enabled = false;
         breakoutByMonthCheckbox.Enabled = false;
+        folderPathTextBox.Enabled = false;
+        startProcessingButton.Enabled = false;
+        stopProcessing.Enabled = true;
         fileTreeView.Nodes.Clear();
         progressBar.Value = 0;
         progressBar.Minimum = 0;
@@ -56,7 +64,7 @@ public partial class FileBreakout : Form
         if (keepCopyCheckbox.Checked)
         {
             File.Copy(fileInfo.FullName, targetPath, overwrite: true);
-        } 
+        }
         else
         {
             File.Move(fileInfo.FullName, targetPath, overwrite: true);
@@ -94,12 +102,19 @@ public partial class FileBreakout : Form
     {
         InitializeComponent();
     }
-
-    private async void BreakoutFilesButtonClick(object sender, EventArgs e)
+    /// <summary>
+    /// Handles the click event for the Select Path button, allowing the user to choose a folder using a dialog. Updates
+    /// the folder path text box with the selected folder path.
+    /// </summary>
+    /// <remarks>If the user cancels the folder selection dialog, no changes are made. If an error occurs
+    /// while displaying the dialog or updating the text box, an error message is shown to the user and logged in the
+    /// log text box.</remarks>
+    /// <param name="sender">The source of the event, typically the Select Path button.</param>
+    /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
+    private void SelectPathButtonClick(object sender, EventArgs e)
     {
         try
         {
-            const string fileBreakoutFolderName = "FileBreakout";
             using var folderBrowserDialog = new FolderBrowserDialog();
             folderBrowserDialog.ShowNewFolderButton = false;
 
@@ -107,44 +122,107 @@ public partial class FileBreakout : Form
             {
                 return;
             }
-
-            PrepareForProcessing();
-            var fileBreakoutFolder = Path.Combine(folderBrowserDialog.SelectedPath, fileBreakoutFolderName);
-            var rootNode = new TreeNode(folderBrowserDialog.SelectedPath);
-            logTextBox.AppendText($"Folder: {folderBrowserDialog.SelectedPath}\n");
-
-            fileTreeView.Nodes.Add(rootNode);
-            Directory.CreateDirectory(fileBreakoutFolder);
-
-            var fileBreakoutFolderNode = new TreeNode(fileBreakoutFolderName);
-            rootNode.Nodes.Add(fileBreakoutFolderNode);
-            rootNode.Expand();
-            var filePaths = Directory.GetFiles(folderBrowserDialog.SelectedPath);
-
-            progressBar.Maximum = filePaths.Length;
-
-            logTextBox.AppendText($"Total Files: {filePaths.Length}\n");
-
-            foreach (var fileInfo in filePaths.Select(path => new FileInfo(path)).OrderBy(fileInfo => fileInfo.LastWriteTime))
-            {
-                await Task.Run(() => AddFile(fileInfo, fileBreakoutFolder, fileBreakoutFolderNode));
-
-                Invoke(() =>
-                {
-                    if (!fileBreakoutFolderNode.IsExpanded)
-                    {
-                        fileBreakoutFolderNode.Expand();
-                    }
-                    progressBar.Value += 1;
-                });
-            }
-            logTextBox.AppendText($"Done\n\n");
-            EnableControls();
+            folderPathTextBox.Text = folderBrowserDialog.SelectedPath;
         }
         catch (Exception ex)
         {
             logTextBox.AppendText($"Error: {ex.Message}\n");
             MessageBox.Show("Error: " + ex.Message);
-        } 
+        }
+    }
+    /// <summary>
+    /// Handles the click event for the Start Processing button, initiating the processing of files in the selected
+    /// folder and updating the UI to reflect progress and results.
+    /// </summary>
+    /// <remarks>This method prepares the UI for processing, creates necessary directories, and processes each
+    /// file asynchronously. Progress and status messages are displayed in the UI. If an error occurs during processing,
+    /// an error message is shown to the user.</remarks>
+    /// <param name="sender">The source of the event, typically the Start Processing button.</param>
+    /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
+    private async void StartProcessingButtonClick(object sender, EventArgs e)
+    {
+        try
+        {
+            if (cancellationTokenSource == null)
+            {
+                cancellationTokenSource = new CancellationTokenSource();
+                cancellationToken = cancellationTokenSource.Token;
+                const string fileBreakoutFolderName = "FileBreakout";
+
+                PrepareForProcessing();
+                var fileBreakoutFolder = Path.Combine(folderPathTextBox.Text, fileBreakoutFolderName);
+                var rootNode = new TreeNode(folderPathTextBox.Text);
+                logTextBox.AppendText($"Folder: {folderPathTextBox.Text}\n");
+
+                fileTreeView.Nodes.Add(rootNode);
+                Directory.CreateDirectory(fileBreakoutFolder);
+
+                var fileBreakoutFolderNode = new TreeNode(fileBreakoutFolderName);
+                rootNode.Nodes.Add(fileBreakoutFolderNode);
+                rootNode.Expand();
+                var filePaths = Directory.GetFiles(folderPathTextBox.Text);
+
+                progressBar.Maximum = filePaths.Length;
+
+                logTextBox.AppendText($"Total Files: {filePaths.Length}\n");
+
+                foreach (var fileInfo in filePaths.Select(path => new FileInfo(path)).OrderBy(fileInfo => fileInfo.LastWriteTime))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Run(() => AddFile(fileInfo, fileBreakoutFolder, fileBreakoutFolderNode));
+
+                    Invoke(() =>
+                    {
+                        if (!fileBreakoutFolderNode.IsExpanded)
+                        {
+                            fileBreakoutFolderNode.Expand();
+                        }
+                        progressBar.Value += 1;
+                    });
+                }
+                logTextBox.AppendText($"Done\n\n");
+                EnableControls();
+            }
+        }
+        catch (Exception ex)
+        {
+            logTextBox.AppendText($"Error: {ex.Message}\n");
+            MessageBox.Show("Error: " + ex.Message);
+        }
+    }
+    /// <summary>
+    /// Handles the TextChanged event for the folder path text box, enabling or disabling the start processing button
+    /// based on whether the text box contains any text.
+    /// </summary>
+    /// <remarks>The start processing button is only enabled when the folder path text box is not empty,
+    /// preventing users from starting processing without specifying a folder path.</remarks>
+    /// <param name="sender">The source of the event, typically the folder path text box whose text has changed.</param>
+    /// <param name="e">An EventArgs instance containing event data.</param>
+    private void folderPathTextBoxTextChanged(object sender, EventArgs e)
+    {
+        if (folderPathTextBox.Text.Length > 0)
+        {
+            startProcessingButton.Enabled = true;
+        }
+        else
+        {
+            startProcessingButton.Enabled = false;
+        }
+    }
+    /// <summary>
+    /// Handles a user-initiated event to stop ongoing processing by requesting cancellation.
+    /// </summary>
+    /// <remarks>This method is intended to be used as an event handler for UI controls that allow users to
+    /// cancel a long-running operation. If no processing is active, invoking this method has no effect.</remarks>
+    /// <param name="sender">The source of the event, typically the control that was clicked to trigger cancellation.</param>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    private void StopProcessingClick(object sender, EventArgs e)
+    {
+        if (cancellationTokenSource != null)
+        {
+            cancellationTokenSource.Cancel();
+            cancellationTokenSource.Dispose();
+            cancellationTokenSource = null;
+        }
     }
 }
