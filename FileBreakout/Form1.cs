@@ -5,8 +5,36 @@ namespace FileBreakout;
 public partial class FileBreakout : Form
 {
     string fileBreakoutFolder;
+    List<string> addedDateFolderPaths = new List<string>();
+    List<string> addedFilePaths = new List<string>();
+    bool addedFileBreakoutFolder = false;
     CancellationTokenSource cancellationTokenSource;
     CancellationToken cancellationToken;
+    private void UndoProcessing()
+    {
+        if (addedFileBreakoutFolder && Directory.Exists(fileBreakoutFolder))
+        {
+            Directory.Delete(fileBreakoutFolder, recursive: true);
+        }
+        else if (Directory.Exists(fileBreakoutFolder))
+        {
+            foreach (var filePath in addedFilePaths)
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+            foreach (var dateFolderPath in addedDateFolderPaths)
+            {
+                if (Directory.Exists(dateFolderPath))
+                {
+                    Directory.Delete(dateFolderPath);
+                }
+            }
+        }
+
+    }
     /// <summary>
     /// Resets the user interface controls to their initial enabled and cleared state, preparing the application for a
     /// new operation.
@@ -60,7 +88,12 @@ public partial class FileBreakout : Form
 
         var fileDatePath = Path.Combine(fileBreakoutFolder, partialDatePath);
 
-        Directory.CreateDirectory(fileDatePath);
+        if (!Directory.Exists(fileDatePath))
+        {
+            Directory.CreateDirectory(fileDatePath);
+            addedDateFolderPaths.Add(fileDatePath);
+        }
+
         Invoke(() =>
         {
             AddTreeNodeDateFolder(fileBreakoutFolderNode, partialDatePath);
@@ -76,6 +109,7 @@ public partial class FileBreakout : Form
         {
             File.Move(fileInfo.FullName, targetPath, overwrite: true);
         }
+        addedFilePaths.Add(targetPath);
     }
     /// <summary>
     /// Adds a child node representing a date folder to the specified parent tree node if it does not already exist.
@@ -157,8 +191,11 @@ public partial class FileBreakout : Form
                 logTextBox.AppendText($"Folder: {folderPathTextBox.Text}\n");
 
                 fileTreeView.Nodes.Add(rootNode);
-                Directory.CreateDirectory(fileBreakoutFolder);
-
+                if (!Directory.Exists(fileBreakoutFolder))
+                {
+                    Directory.CreateDirectory(fileBreakoutFolder);
+                    addedFileBreakoutFolder = true;
+                }
                 var fileBreakoutFolderNode = new TreeNode(fileBreakoutFolderName);
                 rootNode.Nodes.Add(fileBreakoutFolderNode);
                 rootNode.Expand();
@@ -189,8 +226,9 @@ public partial class FileBreakout : Form
         catch (OperationCanceledException ex)
         {
             InitialState();
-            Directory.Delete(fileBreakoutFolder, recursive: true);
-            MessageBox.Show("Operation canceled. FileBreakout folder and all contents have been deleted");
+            //Directory.Delete(fileBreakoutFolder, recursive: true);
+            UndoProcessing();
+            MessageBox.Show("Operation canceled. Any folders or files created have been removed.");
         }
         catch (Exception ex)
         {
