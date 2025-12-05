@@ -54,7 +54,7 @@
             progressBar.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             progressBar.Location = new Point(12, 375);
             progressBar.Name = "progressBar";
-            progressBar.Size = new Size(716, 23);
+            progressBar.Size = new Size(717, 23);
             progressBar.TabIndex = 3;
             // 
             // keepCopyCheckbox
@@ -84,7 +84,7 @@
             fileTreeView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             fileTreeView.Location = new Point(188, 41);
             fileTreeView.Name = "fileTreeView";
-            fileTreeView.Size = new Size(540, 328);
+            fileTreeView.Size = new Size(541, 328);
             fileTreeView.TabIndex = 6;
             // 
             // logTextBox
@@ -104,7 +104,7 @@
             folderPathTextBox.Name = "folderPathTextBox";
             folderPathTextBox.Size = new Size(361, 23);
             folderPathTextBox.TabIndex = 8;
-            folderPathTextBox.TextChanged += folderPathTextBoxTextChanged;
+            folderPathTextBox.TextChanged += FolderPathTextBoxTextChanged;
             // 
             // startProcessingButton
             // 
@@ -113,7 +113,7 @@
             startProcessingButton.Name = "startProcessingButton";
             startProcessingButton.Size = new Size(84, 23);
             startProcessingButton.TabIndex = 9;
-            startProcessingButton.Text = "Breakout";
+            startProcessingButton.Text = "Start";
             startProcessingButton.UseVisualStyleBackColor = true;
             startProcessingButton.Click += StartProcessingButtonClick;
             // 
@@ -132,7 +132,7 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(740, 410);
+            ClientSize = new Size(741, 410);
             Controls.Add(stopProcessing);
             Controls.Add(startProcessingButton);
             Controls.Add(folderPathTextBox);

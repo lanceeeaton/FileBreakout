@@ -4,19 +4,27 @@ namespace FileBreakout;
 /// </summary>
 public partial class FileBreakout : Form
 {
+    string fileBreakoutFolder;
     CancellationTokenSource cancellationTokenSource;
     CancellationToken cancellationToken;
     /// <summary>
-    /// Enables controls
+    /// Resets the user interface controls to their initial enabled and cleared state, preparing the application for a
+    /// new operation.
     /// </summary>
-    private void EnableControls()
+    /// <remarks>Call this method to ensure all relevant controls are enabled and cleared before starting a
+    /// new processing session. This method is typically used to reinitialize the UI after a previous operation has
+    /// completed or been canceled.</remarks>
+    private void InitialState()
     {
         selectPathButton.Enabled = true;
         keepCopyCheckbox.Enabled = true;
         breakoutByMonthCheckbox.Enabled = true;
-        folderPathTextBox.Enabled = true;
         startProcessingButton.Enabled = true;
         stopProcessing.Enabled = false;
+        folderPathTextBox.Clear();
+        logTextBox.Clear();
+        fileTreeView.Nodes.Clear();
+        progressBar.Value = 0;
     }
     /// <summary>
     /// Prepares the UI for processing by disabling controls, clearing the file tree view, and resetting the progress bar.
@@ -26,7 +34,6 @@ public partial class FileBreakout : Form
         selectPathButton.Enabled = false;
         keepCopyCheckbox.Enabled = false;
         breakoutByMonthCheckbox.Enabled = false;
-        folderPathTextBox.Enabled = false;
         startProcessingButton.Enabled = false;
         stopProcessing.Enabled = true;
         fileTreeView.Nodes.Clear();
@@ -109,8 +116,6 @@ public partial class FileBreakout : Form
     /// <remarks>If the user cancels the folder selection dialog, no changes are made. If an error occurs
     /// while displaying the dialog or updating the text box, an error message is shown to the user and logged in the
     /// log text box.</remarks>
-    /// <param name="sender">The source of the event, typically the Select Path button.</param>
-    /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
     private void SelectPathButtonClick(object sender, EventArgs e)
     {
         try
@@ -126,7 +131,6 @@ public partial class FileBreakout : Form
         }
         catch (Exception ex)
         {
-            logTextBox.AppendText($"Error: {ex.Message}\n");
             MessageBox.Show("Error: " + ex.Message);
         }
     }
@@ -137,8 +141,6 @@ public partial class FileBreakout : Form
     /// <remarks>This method prepares the UI for processing, creates necessary directories, and processes each
     /// file asynchronously. Progress and status messages are displayed in the UI. If an error occurs during processing,
     /// an error message is shown to the user.</remarks>
-    /// <param name="sender">The source of the event, typically the Start Processing button.</param>
-    /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
     private async void StartProcessingButtonClick(object sender, EventArgs e)
     {
         try
@@ -150,7 +152,7 @@ public partial class FileBreakout : Form
                 const string fileBreakoutFolderName = "FileBreakout";
 
                 PrepareForProcessing();
-                var fileBreakoutFolder = Path.Combine(folderPathTextBox.Text, fileBreakoutFolderName);
+                fileBreakoutFolder = Path.Combine(folderPathTextBox.Text, fileBreakoutFolderName);
                 var rootNode = new TreeNode(folderPathTextBox.Text);
                 logTextBox.AppendText($"Folder: {folderPathTextBox.Text}\n");
 
@@ -181,12 +183,17 @@ public partial class FileBreakout : Form
                     });
                 }
                 logTextBox.AppendText($"Done\n\n");
-                EnableControls();
+                InitialState();
             }
+        }
+        catch (OperationCanceledException ex)
+        {
+            InitialState();
+            Directory.Delete(fileBreakoutFolder, recursive: true);
+            MessageBox.Show("Operation canceled. FileBreakout folder and all contents have been deleted");
         }
         catch (Exception ex)
         {
-            logTextBox.AppendText($"Error: {ex.Message}\n");
             MessageBox.Show("Error: " + ex.Message);
         }
     }
@@ -196,9 +203,7 @@ public partial class FileBreakout : Form
     /// </summary>
     /// <remarks>The start processing button is only enabled when the folder path text box is not empty,
     /// preventing users from starting processing without specifying a folder path.</remarks>
-    /// <param name="sender">The source of the event, typically the folder path text box whose text has changed.</param>
-    /// <param name="e">An EventArgs instance containing event data.</param>
-    private void folderPathTextBoxTextChanged(object sender, EventArgs e)
+    private void FolderPathTextBoxTextChanged(object sender, EventArgs e)
     {
         if (folderPathTextBox.Text.Length > 0)
         {
@@ -210,12 +215,11 @@ public partial class FileBreakout : Form
         }
     }
     /// <summary>
-    /// Handles a user-initiated event to stop ongoing processing by requesting cancellation.
+    /// Handles a user action to stop ongoing processing by requesting cancellation of the current operation.
     /// </summary>
-    /// <remarks>This method is intended to be used as an event handler for UI controls that allow users to
-    /// cancel a long-running operation. If no processing is active, invoking this method has no effect.</remarks>
-    /// <param name="sender">The source of the event, typically the control that was clicked to trigger cancellation.</param>
-    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    /// <remarks>This method is intended to be used as an event handler for a stop button. It
+    /// signals cancellation to any ongoing operation that supports cancellation via a
+    /// CancellationTokenSource.</remarks>
     private void StopProcessingClick(object sender, EventArgs e)
     {
         if (cancellationTokenSource != null)
