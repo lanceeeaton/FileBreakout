@@ -31,7 +31,6 @@
             selectPathButton = new Button();
             progressBar = new ProgressBar();
             keepCopyCheckbox = new CheckBox();
-            breakoutByMonthCheckbox = new CheckBox();
             fileTreeView = new TreeView();
             logTextBox = new TextBox();
             folderPathTextBox = new TextBox();
@@ -69,16 +68,6 @@
             keepCopyCheckbox.Text = "Keep Copy of Files";
             keepCopyCheckbox.UseVisualStyleBackColor = true;
             // 
-            // breakoutByMonthCheckbox
-            // 
-            breakoutByMonthCheckbox.AutoSize = true;
-            breakoutByMonthCheckbox.Location = new Point(13, 66);
-            breakoutByMonthCheckbox.Name = "breakoutByMonthCheckbox";
-            breakoutByMonthCheckbox.Size = new Size(128, 19);
-            breakoutByMonthCheckbox.TabIndex = 5;
-            breakoutByMonthCheckbox.Text = "Breakout by Month";
-            breakoutByMonthCheckbox.UseVisualStyleBackColor = true;
-            // 
             // fileTreeView
             // 
             fileTreeView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -91,10 +80,10 @@
             // 
             logTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
             logTextBox.Enabled = false;
-            logTextBox.Location = new Point(12, 91);
+            logTextBox.Location = new Point(12, 66);
             logTextBox.Multiline = true;
             logTextBox.Name = "logTextBox";
-            logTextBox.Size = new Size(154, 278);
+            logTextBox.Size = new Size(154, 303);
             logTextBox.TabIndex = 7;
             // 
             // folderPathTextBox
@@ -138,7 +127,6 @@
             Controls.Add(folderPathTextBox);
             Controls.Add(logTextBox);
             Controls.Add(fileTreeView);
-            Controls.Add(breakoutByMonthCheckbox);
             Controls.Add(keepCopyCheckbox);
             Controls.Add(progressBar);
             Controls.Add(selectPathButton);
@@ -153,7 +141,6 @@
         private Button selectPathButton;
         private ProgressBar progressBar;
         private CheckBox keepCopyCheckbox;
-        private CheckBox breakoutByMonthCheckbox;
         private TreeView fileTreeView;
         private TextBox logTextBox;
         private TextBox folderPathTextBox;

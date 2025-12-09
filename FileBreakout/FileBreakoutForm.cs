@@ -1,39 +1,69 @@
+using System;
+using System.IO;
+using static FileBreakout.FileBreakout;
+
 namespace FileBreakout;
 /// <summary>
 /// Main form for the File Breakout application.
 /// </summary>
 public partial class FileBreakout : Form
 {
-    string fileBreakoutFolder;
+    string fileBreakoutFolder = "";
     List<string> addedDateFolderPaths = new List<string>();
-    List<string> addedFilePaths = new List<string>();
-    bool addedFileBreakoutFolder = false;
-    CancellationTokenSource cancellationTokenSource;
+    public record FilePaths(string sourceFilePath, string destinationFilePath);
+    List<FilePaths> filePaths = new List<FilePaths>();
+    CancellationTokenSource? cancellationTokenSource;
     CancellationToken cancellationToken;
+
+    /// <summary>
+    /// Reverts changes made to the destination files by either deleting them or restoring the original source files,
+    /// depending on the specified option.
+    /// </summary>
+    /// <param name="keptCopy">If <see langword="true"/>, deletes the destination files and leaves the original source files unchanged; if <see
+    /// langword="false"/>, restores the original source files by moving the destination files back to their original
+    /// locations.</param>
+    private void UndoFiles (bool keptCopy)
+    {
+        foreach (var filePath in filePaths)
+        {
+            if (File.Exists(filePath.destinationFilePath))
+            {
+                if (keptCopy)
+                {
+                    File.Delete(filePath.destinationFilePath);
+                }
+                else
+                {
+                    File.Move(filePath.destinationFilePath, filePath.sourceFilePath, overwrite: true);
+                }
+            }
+        }
+    }
+    /// <summary>
+    /// Removes any date-based folders that were previously added by the operation.
+    /// </summary>
+    /// <remarks>This method deletes directories listed in the collection of added date folder paths if they
+    /// exist. It is intended to reverse folder creation performed earlier in the workflow.
+    /// Use with caution, as any data within these folders will be
+    /// lost.</remarks>
+    private void UndoDateFolders()
+    {
+        foreach (var dateFolderPath in addedDateFolderPaths)
+        {
+            Directory.Delete(dateFolderPath);
+        }
+    }
     private void UndoProcessing()
     {
-        if (addedFileBreakoutFolder && Directory.Exists(fileBreakoutFolder))
+        if (Directory.Exists(fileBreakoutFolder))
         {
-            Directory.Delete(fileBreakoutFolder, recursive: true);
+            UndoFiles(keepCopyCheckbox.Checked);
+            UndoDateFolders();
         }
-        else if (Directory.Exists(fileBreakoutFolder))
+        if (Directory.GetFiles(fileBreakoutFolder).Length == 0 && Directory.GetDirectories(fileBreakoutFolder).Length == 0)
         {
-            foreach (var filePath in addedFilePaths)
-            {
-                if (File.Exists(filePath))
-                {
-                    File.Delete(filePath);
-                }
-            }
-            foreach (var dateFolderPath in addedDateFolderPaths)
-            {
-                if (Directory.Exists(dateFolderPath))
-                {
-                    Directory.Delete(dateFolderPath);
-                }
-            }
+             Directory.Delete(fileBreakoutFolder);
         }
-
     }
     /// <summary>
     /// Resets the user interface controls to their initial enabled and cleared state, preparing the application for a
@@ -46,7 +76,6 @@ public partial class FileBreakout : Form
     {
         selectPathButton.Enabled = true;
         keepCopyCheckbox.Enabled = true;
-        breakoutByMonthCheckbox.Enabled = true;
         startProcessingButton.Enabled = true;
         stopProcessing.Enabled = false;
         folderPathTextBox.Clear();
@@ -61,7 +90,6 @@ public partial class FileBreakout : Form
     {
         selectPathButton.Enabled = false;
         keepCopyCheckbox.Enabled = false;
-        breakoutByMonthCheckbox.Enabled = false;
         startProcessingButton.Enabled = false;
         stopProcessing.Enabled = true;
         fileTreeView.Nodes.Clear();
@@ -69,11 +97,11 @@ public partial class FileBreakout : Form
         progressBar.Minimum = 0;
     }
     /// <summary>
-    /// Adds the specified file to a breakout folder organized by year or by year and month, and updates the
+    /// Adds the specified file to a breakout folder organized by year, and updates the
     /// corresponding tree node to reflect the new file location.
     /// </summary>
-    /// <remarks>The file is placed in a subfolder based on its last write time, either by year or by year and
-    /// month, depending on application settings. The method also updates the UI tree to reflect the new folder and
+    /// <remarks>The file is placed in a subfolder based on its last write time, either by year
+    /// depending on application settings. The method also updates the UI tree to reflect the new folder and
     /// file. If the 'keep copy' option is enabled, the file is copied; otherwise, it is moved.</remarks>
     /// <param name="fileInfo">The file to be added to the breakout folder. The file's last write time determines its placement within the
     /// folder structure.</param>
@@ -83,10 +111,8 @@ public partial class FileBreakout : Form
     private void AddFile(FileInfo fileInfo, string fileBreakoutFolder, TreeNode fileBreakoutFolderNode)
     {
         var fileYear = fileInfo.LastWriteTime.Year.ToString();
-        var fileMonth = fileInfo.LastWriteTime.Month.ToString("D2");
-        var partialDatePath = (breakoutByMonthCheckbox.Checked) ? $"{fileYear}-{fileMonth}" : fileYear;
 
-        var fileDatePath = Path.Combine(fileBreakoutFolder, partialDatePath);
+        var fileDatePath = Path.Combine(fileBreakoutFolder, fileYear);
 
         if (!Directory.Exists(fileDatePath))
         {
@@ -96,8 +122,8 @@ public partial class FileBreakout : Form
 
         Invoke(() =>
         {
-            AddTreeNodeDateFolder(fileBreakoutFolderNode, partialDatePath);
-            AddTreeNodeFile(fileBreakoutFolderNode, partialDatePath, fileInfo.Name);
+            AddTreeNodeDateFolder(fileBreakoutFolderNode, fileYear);
+            AddTreeNodeFile(fileBreakoutFolderNode, fileYear, fileInfo.Name);
         });
         var targetPath = Path.Combine(fileDatePath, fileInfo.Name);
 
@@ -109,7 +135,7 @@ public partial class FileBreakout : Form
         {
             File.Move(fileInfo.FullName, targetPath, overwrite: true);
         }
-        addedFilePaths.Add(targetPath);
+        filePaths.Add(new FilePaths(fileInfo.FullName, targetPath));
     }
     /// <summary>
     /// Adds a child node representing a date folder to the specified parent tree node if it does not already exist.
@@ -117,12 +143,12 @@ public partial class FileBreakout : Form
     /// <remarks>This method ensures that duplicate date folder nodes are not added to the parent node. If a
     /// node with the specified key already exists, no action is taken.</remarks>
     /// <param name="fileBreakoutFolderNode">The parent <see cref="TreeNode"/> to which the date folder node will be added.</param>
-    /// <param name="partialDatePath">The key and text for the date folder node to add. Cannot be null or empty.</param>
-    private void AddTreeNodeDateFolder(TreeNode fileBreakoutFolderNode, string partialDatePath)
+    /// <param name="fileYear">The key and text for the date folder node to add. Cannot be null or empty.</param>
+    private void AddTreeNodeDateFolder(TreeNode fileBreakoutFolderNode, string fileYear)
     {
-        if (!fileBreakoutFolderNode.Nodes.ContainsKey(partialDatePath))
+        if (!fileBreakoutFolderNode.Nodes.ContainsKey(fileYear))
         {
-            fileBreakoutFolderNode.Nodes.Add(partialDatePath, partialDatePath);
+            fileBreakoutFolderNode.Nodes.Add(fileYear, fileYear);
         }
     }
     /// <summary>
@@ -131,12 +157,12 @@ public partial class FileBreakout : Form
     /// </summary>
     /// <param name="fileBreakoutFolderNode">The parent <see cref="TreeNode"/> representing the folder under which the file node will be added. Cannot be
     /// null.</param>
-    /// <param name="partialDatePath">The key used to locate the child node within <paramref name="fileBreakoutFolderNode"/> where the file node
+    /// <param name="fileYear">The key used to locate the child node within <paramref name="fileBreakoutFolderNode"/> where the file node
     /// should be added. Must correspond to an existing child node.</param>
     /// <param name="fileName">The name of the file node to add as a child to the located node. Cannot be null or empty.</param>
-    private void AddTreeNodeFile(TreeNode fileBreakoutFolderNode, string partialDatePath, string fileName)
+    private void AddTreeNodeFile(TreeNode fileBreakoutFolderNode, string fileYear, string fileName)
     {
-        fileBreakoutFolderNode.Nodes.Find(partialDatePath, false)[0].Nodes.Add(fileName);
+        fileBreakoutFolderNode.Nodes.Find(fileYear, false)[0].Nodes.Add(fileName);
     }
 
     public FileBreakout()
@@ -194,7 +220,6 @@ public partial class FileBreakout : Form
                 if (!Directory.Exists(fileBreakoutFolder))
                 {
                     Directory.CreateDirectory(fileBreakoutFolder);
-                    addedFileBreakoutFolder = true;
                 }
                 var fileBreakoutFolderNode = new TreeNode(fileBreakoutFolderName);
                 rootNode.Nodes.Add(fileBreakoutFolderNode);
@@ -223,7 +248,7 @@ public partial class FileBreakout : Form
                 InitialState();
             }
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException)
         {
             InitialState();
             //Directory.Delete(fileBreakoutFolder, recursive: true);
