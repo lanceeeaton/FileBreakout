@@ -53,6 +53,9 @@ public partial class FileBreakout : Form
             Directory.Delete(dateFolderPath);
         }
     }
+    /// <summary>
+    /// Reverts the last processing operation by undoing file changes and removing empty directories.
+    /// </summary>
     private void UndoProcessing()
     {
         if (Directory.Exists(fileBreakoutFolder))
@@ -65,13 +68,18 @@ public partial class FileBreakout : Form
              Directory.Delete(fileBreakoutFolder);
         }
     }
+    private void ResetCancellation()
+    {
+        if (cancellationTokenSource != null)
+        {
+            cancellationTokenSource.Dispose();
+            cancellationTokenSource = null;
+        }
+    }
     /// <summary>
     /// Resets the user interface controls to their initial enabled and cleared state, preparing the application for a
     /// new operation.
     /// </summary>
-    /// <remarks>Call this method to ensure all relevant controls are enabled and cleared before starting a
-    /// new processing session. This method is typically used to reinitialize the UI after a previous operation has
-    /// completed or been canceled.</remarks>
     private void InitialState()
     {
         selectPathButton.Enabled = true;
@@ -79,7 +87,12 @@ public partial class FileBreakout : Form
         startProcessingButton.Enabled = true;
         stopProcessing.Enabled = false;
         folderPathTextBox.Clear();
-        logTextBox.Clear();
+    }
+    /// <summary>
+    /// Clears all nodes from the file tree view and resets the progress bar to its initial state.
+    /// </summary>
+    private void ResetNodesAndProgress()
+    {
         fileTreeView.Nodes.Clear();
         progressBar.Value = 0;
     }
@@ -92,8 +105,7 @@ public partial class FileBreakout : Form
         keepCopyCheckbox.Enabled = false;
         startProcessingButton.Enabled = false;
         stopProcessing.Enabled = true;
-        fileTreeView.Nodes.Clear();
-        progressBar.Value = 0;
+        ResetNodesAndProgress();
         progressBar.Minimum = 0;
     }
     /// <summary>
@@ -188,6 +200,8 @@ public partial class FileBreakout : Form
                 return;
             }
             folderPathTextBox.Text = folderBrowserDialog.SelectedPath;
+            logTextBox.Clear();
+            ResetNodesAndProgress();
         }
         catch (Exception ex)
         {
@@ -214,7 +228,8 @@ public partial class FileBreakout : Form
                 PrepareForProcessing();
                 fileBreakoutFolder = Path.Combine(folderPathTextBox.Text, fileBreakoutFolderName);
                 var rootNode = new TreeNode(folderPathTextBox.Text);
-                logTextBox.AppendText($"Folder: {folderPathTextBox.Text}\n");
+                logTextBox.AppendText($"Folder: {folderPathTextBox.Text}");
+                logTextBox.AppendText(Environment.NewLine);
 
                 fileTreeView.Nodes.Add(rootNode);
                 if (!Directory.Exists(fileBreakoutFolder))
@@ -228,7 +243,8 @@ public partial class FileBreakout : Form
 
                 progressBar.Maximum = filePaths.Length;
 
-                logTextBox.AppendText($"Total Files: {filePaths.Length}\n");
+                logTextBox.AppendText($"Total Files: {filePaths.Length}");
+                logTextBox.AppendText(Environment.NewLine);
 
                 foreach (var fileInfo in filePaths.Select(path => new FileInfo(path)).OrderBy(fileInfo => fileInfo.LastWriteTime))
                 {
@@ -244,7 +260,8 @@ public partial class FileBreakout : Form
                         progressBar.Value += 1;
                     });
                 }
-                logTextBox.AppendText($"Done\n\n");
+                logTextBox.AppendText($"Done");
+                ResetCancellation();
                 InitialState();
             }
         }
@@ -288,8 +305,11 @@ public partial class FileBreakout : Form
         if (cancellationTokenSource != null)
         {
             cancellationTokenSource.Cancel();
-            cancellationTokenSource.Dispose();
-            cancellationTokenSource = null;
+            ResetCancellation();
+        }
+        else
+        {
+            UndoProcessing();
         }
     }
 }
