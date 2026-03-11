@@ -62,10 +62,10 @@ public partial class FileBreakout : Form
         {
             UndoFiles(keepCopyCheckbox.Checked);
             UndoDateFolders();
-        }
-        if (Directory.GetFiles(fileBreakoutFolder).Length == 0 && Directory.GetDirectories(fileBreakoutFolder).Length == 0)
-        {
-             Directory.Delete(fileBreakoutFolder);
+            if (Directory.GetFiles(fileBreakoutFolder).Length == 0 && Directory.GetDirectories(fileBreakoutFolder).Length == 0)
+            {
+                Directory.Delete(fileBreakoutFolder);
+            }
         }
     }
     private void ResetCancellation()
@@ -84,7 +84,6 @@ public partial class FileBreakout : Form
     {
         selectPathButton.Enabled = true;
         keepCopyCheckbox.Enabled = true;
-        startProcessingButton.Enabled = true;
         stopProcessing.Enabled = false;
         folderPathTextBox.Clear();
     }
@@ -107,6 +106,8 @@ public partial class FileBreakout : Form
         stopProcessing.Enabled = true;
         ResetNodesAndProgress();
         progressBar.Minimum = 0;
+        filePaths.Clear();
+        addedDateFolderPaths.Clear();
     }
     /// <summary>
     /// Adds the specified file to a breakout folder organized by year, and updates the
@@ -239,14 +240,14 @@ public partial class FileBreakout : Form
                 var fileBreakoutFolderNode = new TreeNode(fileBreakoutFolderName);
                 rootNode.Nodes.Add(fileBreakoutFolderNode);
                 rootNode.Expand();
-                var filePaths = Directory.GetFiles(folderPathTextBox.Text);
+                var _filePaths = Directory.GetFiles(folderPathTextBox.Text);
 
-                progressBar.Maximum = filePaths.Length;
+                progressBar.Maximum = _filePaths.Length;
 
-                logTextBox.AppendText($"Total Files: {filePaths.Length}");
+                logTextBox.AppendText($"Total Files: {_filePaths.Length}");
                 logTextBox.AppendText(Environment.NewLine);
 
-                foreach (var fileInfo in filePaths.Select(path => new FileInfo(path)).OrderBy(fileInfo => fileInfo.LastWriteTime))
+                foreach (var fileInfo in _filePaths.Select(path => new FileInfo(path)).OrderBy(fileInfo => fileInfo.LastWriteTime))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     await Task.Run(() => AddFile(fileInfo, fileBreakoutFolder, fileBreakoutFolderNode));
